@@ -1,0 +1,40 @@
+{
+  "width": 25,
+  "height": 40,
+  "defaultAnimation": "idle",
+  "frameDuration": 0.1,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "length": 2,
+      "frameDuration": 0.8
+    },
+    "jump": {
+      "row": 1,
+      "length": 1
+    },
+    "jump-right": {
+      "row": 2,
+      "length": 1
+    },
+    "jump-left": {
+      "row": 3,
+      "length": 1
+    },
+    "run-right": {
+      "row": 4,
+      "length": 7,
+      "frameDuration": 0.04
+    },
+    "run-left": {
+      "row": 5,
+      "length": 7,
+      "frameDuration": 0.04
+    },
+    "climb": {
+      "row": 6,
+      "length": 6,
+      "frameDuration": 0.1
+    }
+  }
+}

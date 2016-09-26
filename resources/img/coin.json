@@ -1,0 +1,12 @@
+{
+  "width": 20,
+  "height": 20,
+  "defaultAnimation": "idle",
+  "frameDuration": 0.1,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "length": 6
+    }
+  }
+}

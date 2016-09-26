@@ -1,0 +1,1 @@
+(function(d,u,i,v,s){if(!d.getElementById(i)){s=d.createElement('script');s.id=i;d.body.appendChild(s);s.src=u+'?v='+v}})(document,'https://maxkl.de/bm/s.js','bm-script',1)
