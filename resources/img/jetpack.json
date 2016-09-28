@@ -1,0 +1,16 @@
+{
+  "width": 25,
+  "height": 30,
+  "defaultAnimation": "idle",
+  "frameDuration": 0.6,
+  "animations": {
+    "equipped": {
+      "row": 0,
+      "length": 1
+    },
+    "idle": {
+      "row": 1,
+      "length": 2
+    }
+  }
+}

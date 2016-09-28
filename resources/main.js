@@ -13,12 +13,24 @@
 	}
 
 	var GRAVITY = -1000;
+
 	var PLAYER_SPEED = 300;
 	var PLAYER_CLIMB_SPEED = 50;
 	var JUMP_OFF_SPEED = 500;
+
+	var PLAYER_JETPACK_ACCEL = 700;
+	var JETPACK_TIME = 10;
+	var COINS_FOR_JETPACK = 20;
+
+	var COIN_APPEAR_TIME = 0.5;
+	var COIN_DISAPPEAR_TIME = 0.3;
+	var COIN_DESPAWN_TIME = 0.5;
+	var COIN_SPAWN_DELAY = 2;
+
 	var STOP = 0;
 	var LEFT = -1;
 	var RIGHT = 1;
+
 	var PLATFORM_HEIGHT = 10;
 	var SHOW_PLATFORMS = false;
 
@@ -48,8 +60,11 @@
 	var player;
 	var platforms;
 	var platformScoreSum;
-	var coins;
+	var coins = [];
+	var coinsToSpawn = [];
+	var coinTime = 0;
 	var score = 0;
+	var coinsForJetpack = 0;
 
 	function clamp(v, a, b) {
 		return v < a ? a : v > b ? b : v;
@@ -201,9 +216,11 @@
 		this.color = color;
 	}
 
-	function ParticleEffect(x, y, particlesPerSecond, particleLifeTime, gravity, colors) {
+	function ParticleEffect(x, y, vx, vy, particlesPerSecond, particleLifeTime, gravity, colors) {
 		this.x = x;
 		this.y = y;
+		this.vx = vx;
+		this.vy = vy;
 		this.particleInterval = 1 / particlesPerSecond;
 		this.lifeTime = particleLifeTime;
 		this.gravity = gravity;
@@ -243,8 +260,8 @@
 
 				var x = this.x + 10 * (Math.random() * 2 - 1);
 				var y = this.y + 10 * (Math.random() * 2 - 1);
-				var vx = 50 * (Math.random() * 2 - 1);
-				var vy = 50 * (Math.random() * 2 - 1);
+				var vx = this.vx + 50 * (Math.random() * 2 - 1);
+				var vy = this.vy + 50 * (Math.random() * 2 - 1);
 				var endTime = this.t + this.lifeTime;
 				var color = this.colors[Math.floor(Math.random() * this.colors.length)];
 
@@ -278,6 +295,17 @@
 	//endregion
 	//region Coin
 
+	var coinParticleColors = [
+		'#ff2413',
+		'#ffa313',
+		'#ffdb13',
+		'#baff13',
+		'#13ffa9',
+		'#10adff',
+		'#8d13ff',
+		'#ff136c'
+	];
+
 	function Coin(x, y, sprite) {
 		this.sprite = sprite;
 		this.w = sprite.w;
@@ -286,10 +314,51 @@
 		this.x2 = x + this.w / 2;
 		this.y1 = y + this.h / 2;
 		this.y2 = y - this.h / 2;
+		this.t = 0;
+		this.phase = 0;
+		this.collectible = false;
+		this.deletable = false;
+
+		this.particleEffect = new ParticleEffect(x, y, 0, 0, 100, 0.5, 0, coinParticleColors);
 	}
 
+	Coin.prototype.setCollected = function () {
+		this.collectible = false;
+		this.phase = 2;
+		this.particleEffect.enabled = true;
+	};
+
 	Coin.prototype.draw = function () {
-		this.sprite.draw(this.x1, height - this.y1);
+		if(this.phase == 0) {
+			this.t += deltaTime;
+
+			if(this.t > COIN_APPEAR_TIME) {
+				this.t = 0;
+				this.phase = 1;
+				this.particleEffect.enabled = false;
+				this.collectible = true;
+			}
+		} else if(this.phase == 1) {
+			this.sprite.draw(this.x1, height - this.y1);
+		} else if(this.phase == 2) {
+			this.t += deltaTime;
+
+			if(this.t > COIN_DISAPPEAR_TIME) {
+				this.t = 0;
+				this.phase = 3;
+				this.particleEffect.enabled = false;
+			}
+		} else if(this.phase == 3) {
+			this.t += deltaTime;
+
+			if(this.t > COIN_DESPAWN_TIME) {
+				this.t = 0;
+				this.phase = 4;
+				this.particleEffect.enabled = false;
+				this.deletable = true;
+			}
+		}
+		this.particleEffect.draw();
 	};
 
 	function randomCoin() {
@@ -308,8 +377,14 @@
 	//endregion
 	//region Player
 
-	function Player(x, y, sprite) {
+	var playerParticleColors = [
+		'#ff2413',
+		'#ffdb13'
+	];
+
+	function Player(x, y, sprite, jetpackSprite) {
 		this.sprite = sprite;
+		this.jetpackSprite = jetpackSprite;
 
 		this.x = x;
 		this.y = y;
@@ -319,28 +394,24 @@
 		this.h = sprite.h;
 		this.onGround = true;
 		this.climbing = false;
+		this.jetpack = false;
+		this.jetpackActive = false;
 		this.dir = STOP;
+		this.jetpackTime = 0;
+		this.jetpackWidth = jetpackSprite.w;
+		this.jetpackHeight = jetpackSprite.h;
+		this.jetpackOffset = this.h / 2 + this.jetpackHeight / 2;
 
-		this.particleEffect = new ParticleEffect(x, y + this.h / 2, 50, 1, 0, [
-			'#ff2413',
-			'#ffa313',
-			'#ffdb13',
-			'#baff13',
-			'#13ffa9',
-			'#10adff',
-			'#8d13ff',
-			'#ff136c'
-		]);
-		this.particleEffect.enabled = false;
+		this.jetpackEffect = new ParticleEffect(x, y + this.h / 2, 0, -100, 80, 0.4, GRAVITY, playerParticleColors);
+		this.jetpackEffect.enabled = false;
 	}
 
 	Player.prototype.setAnimation = function () {
 		var dir = this.dir;
-		var showParticles = false;
+		this.jetpackEffect.enabled = this.jetpackActive;
 		if(this.climbing) {
 			this.sprite.setAnimation('climb');
 		} else if(this.onGround) {
-			showParticles = dir != STOP;
 			if(dir == STOP) {
 				this.sprite.setAnimation('idle');
 			} else if(dir == LEFT) {
@@ -349,7 +420,6 @@
 				this.sprite.setAnimation('run-right');
 			}
 		} else {
-			showParticles = true;
 			if(dir == STOP) {
 				this.sprite.setAnimation('jump');
 			} else if(dir == LEFT) {
@@ -358,7 +428,6 @@
 				this.sprite.setAnimation('jump-right');
 			}
 		}
-		this.particleEffect.enabled = showParticles;
 	};
 
 	Player.prototype.setMovementDirection = function (dir) {
@@ -374,9 +443,21 @@
 		this.setAnimation();
 	};
 
-	Player.prototype.jump = function () {
-		if(this.onGround) {
+	Player.prototype.spaceDown = function () {
+		if(this.jetpack) {
+			this.jetpackActive = true;
+			this.onGround = false;
+			this.setAnimation();
+		} else if(this.onGround) {
 			this.vy = JUMP_OFF_SPEED;
+			this.onGround = false;
+			this.setAnimation();
+		}
+	};
+
+	Player.prototype.spaceUp = function () {
+		if(this.jetpack) {
+			this.jetpackActive = false;
 			this.onGround = false;
 			this.setAnimation();
 		}
@@ -390,8 +471,30 @@
 		}
 	};
 
+	Player.prototype.enableJetpack = function () {
+		this.jetpackTime = 0;
+		if(!this.jetpack) {
+			this.jetpack = true;
+			this.setAnimation();
+		}
+	};
+
 	Player.prototype.update = function () {
-		if(this.climbing) {
+		if(this.jetpack) {
+			this.jetpackTime += deltaTime;
+			if(this.jetpackTime > JETPACK_TIME) {
+				this.jetpack = false;
+				this.jetpackActive = false;
+				this.onGround = false;
+				this.setAnimation();
+			}
+		}
+
+		if(this.jetpackActive) {
+			this.vy += PLAYER_JETPACK_ACCEL * deltaTime;
+			this.y += this.vy * deltaTime;
+			this.x += this.vx * deltaTime;
+		} else if(this.climbing) {
 			// this.x += this.vx * deltaTime;
 			this.y -= PLAYER_CLIMB_SPEED * deltaTime;
 		} else {
@@ -427,33 +530,35 @@
 		var playerX2 = this.x + hw;
 		var playerY1 = this.y;
 		var playerY2 = this.y + this.h;
-		var n = platforms.length;
-		if(this.climbing) {
-			var hasGrip = false;
-			while(n--) {
-				var platform = platforms[n];
-				if(playerX2 >= platform.x1 && playerX1 <= platform.x2 && playerY1 <= platform.top && playerY2 >= platform.top) {
-					hasGrip = true;
-					break;
-				}
-			}
-			if(!hasGrip) {
-				this.climbing = false;
-				this.onGround = false;
-				this.setAnimation();
-			}
-		} else {
-			while(n--) {
-				var platform = platforms[n];
-				if(this.vy < 0 && playerX2 >= platform.x1 && playerX1 <= platform.x2 && playerY1 <= platform.top && playerY1 >= platform.top - PLATFORM_HEIGHT) {
-					this.y = platform.top;
-					this.vy = 0;
-					standing = true;
-					if(!this.onGround) {
-						this.onGround = true;
-						this.setAnimation();
+		if(!this.jetpackActive) {
+			var n = platforms.length;
+			if(this.climbing) {
+				var hasGrip = false;
+				while(n--) {
+					var platform = platforms[n];
+					if(playerX2 >= platform.x1 && playerX1 <= platform.x2 && playerY1 <= platform.top && playerY2 >= platform.top) {
+						hasGrip = true;
+						break;
 					}
-					break;
+				}
+				if(!hasGrip) {
+					this.climbing = false;
+					this.onGround = false;
+					this.setAnimation();
+				}
+			} else {
+				while(n--) {
+					var platform = platforms[n];
+					if(this.vy < 0 && playerX2 >= platform.x1 && playerX1 <= platform.x2 && playerY1 <= platform.top && playerY1 >= platform.top - PLATFORM_HEIGHT) {
+						this.y = platform.top;
+						this.vy = 0;
+						standing = true;
+						if(!this.onGround) {
+							this.onGround = true;
+							this.setAnimation();
+						}
+						break;
+					}
 				}
 			}
 		}
@@ -466,18 +571,30 @@
 		var n = coins.length;
 		while(n--) {
 			var coin = coins[n];
-			if(playerX2 >= coin.x1 && playerX1 <= coin.x2 && playerY1 <= coin.y1 && playerY2 >= coin.y2) {
+			if(coin.deletable) {
+				coins.splice(n, 1);
+			} else if(coin.collectible && playerX2 >= coin.x1 && playerX1 <= coin.x2 && playerY1 <= coin.y1 && playerY2 >= coin.y2) {
 				score++;
+				coinsForJetpack++;
+				coin.setCollected();
 				$score.innerHTML = score;
-				coins[n] = randomCoin();
+				coinsToSpawn.push(randomCoin());
+				if(coinsForJetpack >= COINS_FOR_JETPACK) {
+					coinsForJetpack = 0;
+					this.enableJetpack();
+				}
 			}
 		}
 	};
 
 	Player.prototype.draw = function () {
-		this.particleEffect.x = this.x;
-		this.particleEffect.y = this.y + this.h / 2;
-		this.particleEffect.draw();
+		this.jetpackEffect.x = this.x;
+		this.jetpackEffect.y = this.y + this.h / 2 - this.jetpackHeight / 2;
+		this.jetpackEffect.draw();
+
+		if(this.jetpack) {
+			this.jetpackSprite.draw(this.x - this.jetpackWidth / 2, height - this.y - this.jetpackOffset);
+		}
 
 		this.sprite.draw(this.x - this.w / 2, height - this.y - this.h);
 	};
@@ -642,6 +759,15 @@
 		}
 		lastTimestamp = timestamp;
 
+		if(coinsToSpawn.length > 0) {
+			coinTime += deltaTime;
+
+			if(coinTime > COIN_SPAWN_DELAY) {
+				coinTime = 0;
+				coins.push(coinsToSpawn.shift());
+			}
+		}
+
 		player.update();
 
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -695,16 +821,18 @@
 	$scoreContainer.style.font = '30px "Comic Sans", "Comic Sans MS", cursive';
 	$scoreContainer.style.textShadow = '0 0 5px rgba(100, 100, 100, 0.7)';
 	$score = document.createElement('span');
+	$score.style.verticalAlign = 'middle';
 	$score.textContent = '0';
 	$scoreContainer.appendChild($score);
-	$scoreContainer.appendChild(document.createTextNode(' $'));
-	document.body.appendChild($scoreContainer);
 
 	loadResources([
 		['img/stickfigure.png', 'png'],
 		['img/stickfigure.json', 'json'],
 		['img/rainbow-coin.png', 'png'],
-		['img/rainbow-coin.json', 'json']
+		['img/rainbow-coin.json', 'json'],
+		['img/jetpack.png', 'png'],
+		['img/jetpack.json', 'json'],
+		['img/large-rainbow-coin.png', 'png']
 	], function (err, _resources) {
 		if(err) {
 			console.error(err);
@@ -713,12 +841,26 @@
 
 		resources = _resources;
 
-		coins = [];
+		var $scoreImg = document.createElement('span');
+		$scoreImg.style.display = 'inline-block';
+		$scoreImg.style.marginLeft = '0.3em';
+		$scoreImg.style.width = '1em';
+		$scoreImg.style.height = '1em';
+		$scoreImg.style.verticalAlign = 'middle';
+		$scoreImg.style.backgroundPosition = 'center';
+		$scoreImg.style.backgroundRepeat = 'no-repeat';
+		$scoreImg.style.backgroundSize = 'contain';
+		$scoreImg.style.backgroundImage = 'url("' + resources['img/large-rainbow-coin.png'].src + '")';
+		$scoreContainer.appendChild($scoreImg);
+		document.body.appendChild($scoreContainer);
+
 		for(var i = 0; i < 3; i++) {
-			coins.push(randomCoin());
+			coinsToSpawn.push(randomCoin());
 		}
 
-		player = new Player(width / 2, 0, new Sprite(resources['img/stickfigure.png'], resources['img/stickfigure.json']));
+		var stickfigureSprite = new Sprite(resources['img/stickfigure.png'], resources['img/stickfigure.json']);
+		var jetpackSprite = new Sprite(resources['img/jetpack.png'], resources['img/jetpack.json']);
+		player = new Player(width / 2, 0, stickfigureSprite, jetpackSprite);
 
 		requestAnimationFrame(draw);
 
@@ -742,6 +884,8 @@
 					rightDown = true;
 					player.setMovementDirection(RIGHT);
 					break;
+				case 38: // Prevent up-key from scrolling the page
+					break;
 				case 40:
 					if(downDown) break;
 					downDown = true;
@@ -750,7 +894,7 @@
 				case 32:
 					if(spaceDown) break;
 					spaceDown = true;
-					player.jump();
+					player.spaceDown();
 					break;
 				default:
 					doneSomething = false;
@@ -781,6 +925,7 @@
 					break;
 				case 32:
 					spaceDown = false;
+					player.spaceUp();
 					break;
 				default:
 					doneSomething = false;
