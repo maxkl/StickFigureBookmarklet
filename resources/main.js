@@ -6,8 +6,6 @@
 (function (window, document) {
 	'use strict';
 
-	// TODO: correct <pre> (maybe other tags too?) handling (el.getClientRects() returns rect for each line)
-
 	if(BM_OUTDATED) {
 		alert('Your bookmarklet ist outdated, please update it!');
 	}
@@ -466,7 +464,7 @@
 	Player.prototype.setClimbing = function (climb) {
 		if(climb != this.climbing) {
 			this.climbing = climb;
-			this.vy = 0; // TODO: resets vy even if impossible to climb (reset only after successful climb attempt)
+			this.vy = 0;
 			this.setAnimation();
 		}
 	};
@@ -670,7 +668,6 @@
 	}
 
 	function isIdentifiable(el, style) {
-		// TODO: also select if element has border(s) (only borders as rect?)
 		if(style.backgroundImage === 'none' && style.backgroundColor === 'rgba(0, 0, 0, 0)') {
 			return false;
 		}
