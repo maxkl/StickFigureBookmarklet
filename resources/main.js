@@ -37,6 +37,88 @@
 
 	document.body.style.overflow = 'hidden';
 
+	var Storage = (function () {
+		var queuedStorageActions = [];
+		var storageLoaded = false;
+		var nextQueryId = 0;
+		var queryCallbacks = {};
+		window.addEventListener('message', function (evt) {
+			var origin = evt.origin || evt.originalEvent.origin;
+			var source = evt.source;
+			var data = evt.data;
+
+			if(source !== storageIFrame.contentWindow) return;
+
+			if(typeof data !== 'object') return;
+
+			var type = data.type;
+
+			if(type === 'storage ready') {
+				storageLoaded = true;
+				var actions = queuedStorageActions.splice(0);
+				sendStorageActions(actions);
+			} else if(type === 'query result') {
+				var queryId = data.queryId;
+				if(queryCallbacks.hasOwnProperty(queryId)) {
+					var callback = queryCallbacks[queryId];
+					delete queryCallbacks[queryId];
+					callback(data.result);
+				}
+			}
+		});
+
+		var storageIFrame = document.createElement('iframe');
+		storageIFrame.style.display = 'none';
+		storageIFrame.src = 'https://maxkl.de/bm/storage.html?name=stickfigure-game';
+		document.body.appendChild(storageIFrame);
+
+		function sendStorageActions(actions) {
+			storageIFrame.contentWindow.postMessage({
+				type: 'actions',
+				actions: actions
+			}, '*');
+		}
+
+		function Transaction() {
+			this.actions = [];
+		}
+
+		Transaction.prototype.commit = function () {
+			var actions = this.actions.splice(0);
+			if(storageLoaded) {
+				sendStorageActions(actions);
+			} else {
+				queuedStorageActions.push.apply(queuedStorageActions, actions);
+			}
+		};
+
+		Transaction.prototype.set = function (property, value) {
+			this.actions.push([
+				'set',
+				property,
+				value
+			]);
+			return this;
+		};
+
+		function startQuery(properties, callback) {
+			var queryId = nextQueryId;
+			nextQueryId++;
+			queryCallbacks[queryId] = callback;
+			var action = ['query', queryId, properties];
+			if(storageLoaded) {
+				sendStorageActions([action]);
+			} else {
+				queuedStorageActions.push(action);
+			}
+		}
+
+		return {
+			Transaction: Transaction,
+			query: startQuery
+		}
+	})();
+
 	var canvas = document.createElement('canvas');
 	canvas.style.position = 'fixed';
 	canvas.style.top = canvas.style.bottom = canvas.style.left = canvas.style.right = '0';
