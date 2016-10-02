@@ -101,6 +101,15 @@
 			return this;
 		};
 
+		Transaction.prototype.add = function (property, amount) {
+			this.actions.push([
+				'add',
+				property,
+				amount
+			]);
+			return this;
+		};
+
 		function startQuery(properties, callback) {
 			var queryId = nextQueryId;
 			nextQueryId++;
@@ -655,10 +664,15 @@
 				coins.splice(n, 1);
 			} else if(coin.collectible && playerX2 >= coin.x1 && playerX1 <= coin.x2 && playerY1 <= coin.y1 && playerY2 >= coin.y2) {
 				score++;
-				coinsForJetpack++;
-				coin.setCollected();
+				new Storage.Transaction()
+					.add('score', 1)
+					.commit();
 				$score.innerHTML = score;
+
+				coin.setCollected();
 				coinsToSpawn.push(randomCoin());
+
+				coinsForJetpack++;
 				if(coinsForJetpack >= COINS_FOR_JETPACK) {
 					coinsForJetpack = 0;
 					this.enableJetpack();
@@ -932,6 +946,18 @@
 		$scoreImg.style.backgroundImage = 'url("' + resources['img/large-rainbow-coin.png'].src + '")';
 		$scoreContainer.appendChild($scoreImg);
 		document.body.appendChild($scoreContainer);
+
+		Storage.query(['score'], function (result) {
+			if(typeof result['score'] === 'number') {
+				if(score > 0) {
+					new Storage.Transaction()
+						.add('score', score)
+						.commit();
+				}
+				score += result['score'];
+				$score.innerHTML = score;
+			}
+		});
 
 		for(var i = 0; i < 3; i++) {
 			coinsToSpawn.push(randomCoin());

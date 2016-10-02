@@ -54,11 +54,23 @@
 
 				if(actionType === 'set') {
 					storage[action[1]] = action[2];
+				} else if(actionType === 'add') {
+					var amount = action[2];
+					if(typeof amount === 'number') {
+						var property = action[1];
+						var value = +storage[property];
+						if(typeof value === 'number' && !isNaN(value)) {
+							value += amount;
+						} else {
+							value = amount;
+						}
+						storage[property] = value;
+					}
 				} else if(actionType === 'query') {
 					var result = {};
-					var props = action[2];
-					for(var j = 0; j < props.length; j++) {
-						result[props[j]] = storage[props[j]];
+					var properties = action[2];
+					for(var j = 0; j < properties.length; j++) {
+						result[properties[j]] = storage[properties[j]];
 					}
 					source.postMessage({
 						type: 'query result',
