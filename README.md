@@ -5,7 +5,6 @@ A game you can play on any webpage you want!
 
 ## Features
 
-- Save earned coins on server (AJAX w/ CORS)
 - Huge jump unicorns
 - Enemies
 - Tutorial

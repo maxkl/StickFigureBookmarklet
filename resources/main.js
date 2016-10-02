@@ -17,7 +17,7 @@
 	var JUMP_OFF_SPEED = 500;
 
 	var PLAYER_JETPACK_ACCEL = 700;
-	var JETPACK_TIME = 10;
+	var JETPACK_TIME = 20;
 	var COINS_FOR_JETPACK = 20;
 
 	var COIN_APPEAR_TIME = 0.5;
@@ -763,12 +763,31 @@
 		return true;
 	}
 
-	function isIdentifiable(el, style) {
-		if(style.backgroundImage === 'none' && style.backgroundColor === 'rgba(0, 0, 0, 0)') {
-			return false;
+	function getElementPlatforms(el, style) {
+		var platforms = [];
+
+		if(style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+			var clientRects = el.getClientRects();
+			for(var i = 0; i < clientRects.length; i++) {
+				var rect = clientRects[i];
+				platforms.push(new Platform(rect.left, rect.right, height - rect.top));
+				platforms.push(new Platform(rect.left, rect.right, height - rect.bottom));
+			}
 		}
 
-		return true;
+		// if(style.backgroundImage !== 'none') {
+		//
+		// }
+
+		// if(style.borderTopStyle !== 'none') {
+		// 	var w = +style.borderTopWidth.slice(0, -2);
+		//
+		// 	if(w > 0) {
+		//
+		// 	}
+		// }
+
+		return platforms;
 	}
 
 	function _getPlatforms(node, platforms) {
@@ -802,17 +821,7 @@
 				}
 			}
 
-			if(!isIdentifiable(childNode, style)) continue;
-
-			var rects = childNode.getClientRects();
-			// if(rects.length > 0) {
-			// 	childNode.style.backgroundColor = 'rgba(255, 0, 0, .1)';
-			// 	childNode.classList.add('candi');
-			// }
-			for(var j = 0; j < rects.length; j++) {
-				var rect = rects[j];
-				platforms.push(new Platform(rect.left, rect.left + rect.width, height - rect.top));
-			}
+			platforms.push.apply(platforms, getElementPlatforms(childNode, style));
 		}
 
 		return textNodes;
